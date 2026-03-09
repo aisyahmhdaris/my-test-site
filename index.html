@@ -1,17 +1,744 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>My Test Site</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Progress Report Generator</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+  </style>
 </head>
 <body>
+  <div id="root"></div>
 
-  <h1>Progress Report Tool</h1>
+<script type="text/babel">
+const { useState, useRef } = React;
 
-  <iframe 
-    src="https://codesandbox.io/p/sandbox/pvn47l"
-    style="width:100%; height:800px; border:none;"
-    allow="clipboard-write">
-  </iframe>
+/* ── RUBRICS ─────────────────────────────────────────────────── */
+const RUBRICS = {
+  A:{ tp:"TP 6", range:"82–100%", label:"Exemplary",
+      canDo:"Uses language fluently and with creative flair. Produces extended, well-structured text with accurate grammar and a wide vocabulary. Can handle unfamiliar and complex tasks without guidance. Demonstrates strong independent thinking.",
+      nextSteps:"Encourage leadership roles in collaborative tasks and more complex, open-ended challenges. Suggest competitions, enrichment programmes, or peer mentoring. Keep the student intellectually challenged and growing beyond the standard curriculum." },
+  B:{ tp:"TP 5", range:"66–81%", label:"Commendable",
+      canDo:"Understands and produces detailed text with good clarity and structure. Uses varied vocabulary and demonstrates solid grammar control. Can work largely independently and handles familiar and moderately challenging tasks with confidence.",
+      nextSteps:"Focus on developing greater creative range and precision in language use. Encourage reading a wider variety of text types. Targeted feedback on grammar refinement and sentence variation will help close the gap to the highest band." },
+  C:{ tp:"TP 4", range:"50–65%", label:"Good",
+      canDo:"Performs tasks independently in familiar contexts with reasonable accuracy. Can write simple, clear sentences and communicate basic ideas effectively. Shows understanding of core concepts covered in the assessment.",
+      nextSteps:"Extend beyond simple tasks and develop confidence with more detailed and varied writing. Practise writing longer pieces and experiment with a wider range of vocabulary. Reading regularly will support both comprehension and writing development." },
+  D:{ tp:"TP 3", range:"35–49%", label:"Satisfactory",
+      canDo:"Can understand and use basic language in familiar situations with some support. Demonstrates a foundational grasp of key concepts. Can complete straightforward tasks when given some guidance.",
+      nextSteps:"Consolidate skills to become fully independent. Regular revision of core vocabulary and grammar patterns is recommended. Consistent daily practice of 15–20 minutes will make a significant difference." },
+};
 
+const GC = { A:"#16a34a", B:"#2563eb", C:"#d97706", D:"#dc2626", TH:"#6b7280" };
+const GB = { A:"#dcfce7", B:"#dbeafe", C:"#fef3c7", D:"#fee2e2", TH:"#f3f4f6" };
+
+const inferGrade = s => {
+  if (s===null||s===undefined||isNaN(s)) return "TH";
+  if (s>=82) return "A"; if (s>=66) return "B"; if (s>=50) return "C"; if (s>=35) return "D"; return "F";
+};
+
+/* ── DEMO DATA ───────────────────────────────────────────────── */
+const DEMO_STUDENTS = [
+  {no:1,name:"Student 1",tov:71,tov_g:"B",t1:76,t1_g:"B",mid:80,mid_g:"B",eoy:80,eoy_g:"B",oral:82,oral_g:"B",final:79.5,final_g:"B"},
+  {no:2,name:"Student 2",tov:63,tov_g:"C",t1:68,t1_g:"C",mid:65,mid_g:"C",eoy:65,eoy_g:"C",oral:82,oral_g:"B",final:70,final_g:"B"},
+  {no:3,name:"Student 3",tov:65,tov_g:"C",t1:70,t1_g:"B",mid:70,mid_g:"B",eoy:70,eoy_g:"B",oral:89,oral_g:"A",final:74.75,final_g:"B"},
+  {no:4,name:"Student 4",tov:72,tov_g:"B",t1:77,t1_g:"B",mid:75,mid_g:"B",eoy:75,eoy_g:"B",oral:82,oral_g:"B",final:77.25,final_g:"B"},
+  {no:5,name:"Student 5",tov:80,tov_g:"B",t1:85,t1_g:"A",mid:85,mid_g:"A",eoy:85,eoy_g:"A",oral:80,oral_g:"B",final:83.75,final_g:"A"},
+  {no:6,name:"Student 6",tov:65,tov_g:"C",t1:70,t1_g:"B",mid:70,mid_g:"B",eoy:70,eoy_g:"B",oral:84,oral_g:"B",final:73.5,final_g:"B"},
+  {no:7,name:"Student 7",tov:65,tov_g:"C",t1:70,t1_g:"B",mid:70,mid_g:"B",eoy:70,eoy_g:"B",oral:87,oral_g:"A",final:74.25,final_g:"B"},
+  {no:8,name:"Student 8",tov:62,tov_g:"C",t1:67,t1_g:"C",mid:67,mid_g:"C",eoy:67,eoy_g:"C",oral:67,oral_g:"C",final:67,final_g:"B"},
+  {no:9,name:"Student 9",tov:83,tov_g:"B",t1:88,t1_g:"A",mid:88,mid_g:"A",eoy:88,eoy_g:"A",oral:80,oral_g:"B",final:86,final_g:"A"},
+  {no:10,name:"Student 10",tov:75,tov_g:"B",t1:80,t1_g:"B",mid:80,mid_g:"B",eoy:80,eoy_g:"B",oral:78,oral_g:"B",final:79.5,final_g:"B"},
+  {no:11,name:"Student 11",tov:70,tov_g:"B",t1:75,t1_g:"B",mid:76,mid_g:"B",eoy:76,eoy_g:"B",oral:82,oral_g:"B",final:77.25,final_g:"B"},
+  {no:12,name:"Student 12",tov:74,tov_g:"B",t1:79,t1_g:"B",mid:79,mid_g:"B",eoy:79,eoy_g:"B",oral:78,oral_g:"B",final:78.75,final_g:"B"},
+  {no:13,name:"Student 13",tov:67,tov_g:"C",t1:72,t1_g:"B",mid:74,mid_g:"B",eoy:75,eoy_g:"B",oral:87,oral_g:"A",final:77,final_g:"B"},
+  {no:14,name:"Student 14",tov:72,tov_g:"B",t1:77,t1_g:"B",mid:79,mid_g:"B",eoy:79,eoy_g:"B",oral:91,oral_g:"A",final:81.5,final_g:"B"},
+  {no:15,name:"Student 15",tov:64,tov_g:"C",t1:69,t1_g:"C",mid:70,mid_g:"B",eoy:72,eoy_g:"B",oral:71,oral_g:"B",final:70.5,final_g:"B"},
+  {no:16,name:"Student 16",tov:90,tov_g:"A",t1:95,t1_g:"A",mid:90,mid_g:"A",eoy:90,eoy_g:"A",oral:78,oral_g:"B",final:88.25,final_g:"A"},
+  {no:17,name:"Student 17",tov:85,tov_g:"A",t1:90,t1_g:"A",mid:90,mid_g:"A",eoy:90,eoy_g:"A",oral:82,oral_g:"B",final:88,final_g:"A"},
+  {no:18,name:"Student 18",tov:66,tov_g:"C",t1:71,t1_g:"B",mid:68,mid_g:"C",eoy:68,eoy_g:"C",oral:78,oral_g:"B",final:71.25,final_g:"B"},
+  {no:19,name:"Student 19",tov:58,tov_g:"D",t1:63,t1_g:"C",mid:60,mid_g:"C",eoy:63,eoy_g:"C",oral:76,oral_g:"B",final:65.5,final_g:"C"},
+  {no:20,name:"Student 20",tov:77,tov_g:"B",t1:82,t1_g:"B",mid:77,mid_g:"B",eoy:77,eoy_g:"B",oral:78,oral_g:"B",final:78.5,final_g:"B"},
+  {no:21,name:"Student 21",tov:88,tov_g:"A",t1:93,t1_g:"A",mid:88,mid_g:"A",eoy:88,eoy_g:"A",oral:91,oral_g:"A",final:90,final_g:"A"},
+  {no:22,name:"Student 22",tov:null,tov_g:"TH",t1:60,t1_g:"C",mid:65,mid_g:"C",eoy:65,eoy_g:"C",oral:96,oral_g:"A",final:71.5,final_g:"B"},
+  {no:23,name:"Student 23",tov:65,tov_g:"C",t1:70,t1_g:"B",mid:68,mid_g:"C",eoy:68,eoy_g:"C",oral:72,oral_g:"B",final:69.5,final_g:"B"},
+  {no:24,name:"Student 24",tov:61,tov_g:"C",t1:66,t1_g:"C",mid:66,mid_g:"C",eoy:66,eoy_g:"C",oral:76,oral_g:"B",final:68.5,final_g:"B"},
+  {no:25,name:"Student 25",tov:64,tov_g:"C",t1:69,t1_g:"C",mid:69,mid_g:"C",eoy:69,eoy_g:"C",oral:76,oral_g:"B",final:70.75,final_g:"B"},
+  {no:26,name:"Student 26",tov:81,tov_g:"B",t1:86,t1_g:"A",mid:82,mid_g:"B",eoy:83,eoy_g:"B",oral:72,oral_g:"B",final:80.75,final_g:"B"},
+  {no:27,name:"Student 27",tov:67,tov_g:"C",t1:72,t1_g:"B",mid:68,mid_g:"C",eoy:68,eoy_g:"C",oral:80,oral_g:"B",final:72,final_g:"B"},
+  {no:28,name:"Student 28",tov:65,tov_g:"C",t1:70,t1_g:"B",mid:68,mid_g:"C",eoy:68,eoy_g:"C",oral:82,oral_g:"B",final:72,final_g:"B"},
+  {no:29,name:"Student 29",tov:66,tov_g:"C",t1:71,t1_g:"B",mid:68,mid_g:"C",eoy:68,eoy_g:"C",oral:78,oral_g:"B",final:71.25,final_g:"B"},
+  {no:30,name:"Student 30",tov:77,tov_g:"B",t1:82,t1_g:"B",mid:78,mid_g:"B",eoy:79,eoy_g:"B",oral:78,oral_g:"B",final:79.25,final_g:"B"},
+  {no:31,name:"Student 31",tov:90,tov_g:"A",t1:95,t1_g:"A",mid:80,mid_g:"B",eoy:85,eoy_g:"A",oral:96,oral_g:"A",final:89,final_g:"A"},
+  {no:32,name:"Student 32",tov:80,tov_g:"B",t1:85,t1_g:"A",mid:80,mid_g:"B",eoy:85,eoy_g:"A",oral:84,oral_g:"B",final:83.5,final_g:"A"},
+  {no:33,name:"Student 33",tov:70,tov_g:"B",t1:75,t1_g:"B",mid:72,mid_g:"B",eoy:73,eoy_g:"B",oral:80,oral_g:"B",final:75,final_g:"B"},
+  {no:34,name:"Student 34",tov:90,tov_g:"A",t1:92,t1_g:"A",mid:80,mid_g:"B",eoy:85,eoy_g:"A",oral:100,oral_g:"A",final:89.25,final_g:"A"},
+];
+
+/* ── HELPERS ─────────────────────────────────────────────────── */
+function parseCSV(text) {
+  const lines = text.trim().split("\n").map(l=>l.replace(/\r/g,""));
+  const headers = lines[0].split(",").map(h=>h.replace(/"/g,"").trim().toLowerCase());
+  return lines.slice(1).filter(l=>l.trim()).map(line=>{
+    const vals=line.split(",").map(v=>v.replace(/"/g,"").trim());
+    const obj={};
+    headers.forEach((h,i)=>obj[h]=vals[i]||"");
+    return obj;
+  });
+}
+function normalizeRows(rows) {
+  return rows.map((r,i)=>{
+    const name=r["student name"]||r["name"]||r["students' names"]||r["students names"]||`Student ${i+1}`;
+    const tov=parseFloat(r["tov"]||r["tov_m"])||null;
+    const t1=parseFloat(r["test 1"]||r["test1"]||r["t1"]||r["t1_m"])||null;
+    const mid=parseFloat(r["mid term"]||r["mid"]||r["mid_m"])||null;
+    const eoy=parseFloat(r["end of year"]||r["eoy"]||r["eoy_m"])||null;
+    const oral=parseFloat(r["oral"]||r["oral_m"])||null;
+    const final=parseFloat(r["final score"]||r["final"]||r["final_m"])||null;
+    const computedFinal=final||parseFloat(([tov,t1,mid,eoy,oral].filter(Boolean).reduce((a,b,_,arr)=>a+b/arr.length,0)||0).toFixed(2));
+    return {
+      no:parseInt(r["no"]||r["#"]||(i+1)), name:name.trim(),
+      tov, tov_g:r["tov_g"]||inferGrade(tov),
+      t1,  t1_g:r["t1_g"]||inferGrade(t1),
+      mid, mid_g:r["mid_g"]||inferGrade(mid),
+      eoy, eoy_g:r["eoy_g"]||inferGrade(eoy),
+      oral,oral_g:r["oral_g"]||inferGrade(oral),
+      final:parseFloat(computedFinal.toFixed(2)),
+      final_g:r["final_g"]||inferGrade(computedFinal),
+    };
+  }).filter(s=>s.name&&s.name!=="undefined");
+}
+const buildPrompt=(s,cls,subj,tc)=>{
+  const r=RUBRICS[s.final_g]||RUBRICS["C"];
+  const t=tc?.trim()?`\nTEACHER'S OBSERVATION: "${tc}" — weave this naturally into the report.`:"";
+  return `You are a professional teacher writing a formal student progress report.
+CLASS: ${cls} | SUBJECT: ${subj}
+STUDENT: ${s.name} | TOV: ${s.tov??"TH"} (${s.tov_g}) | Test 1: ${s.t1} (${s.t1_g}) | Mid: ${s.mid} (${s.mid_g}) | EOY: ${s.eoy} (${s.eoy_g}) | Oral: ${s.oral} (${s.oral_g}) | FINAL: ${s.final} → ${s.final_g}${t}
+BAND: ${r.tp} – ${r.label} (${r.range})
+Can Do: ${r.canDo}
+Next Steps: ${r.nextSteps}
+Write a warm, professional, personalised progress report ~200-250 words. Paragraphs only, no bullets. Include: opening, score progression, strengths, next steps, encouraging close.`;
+};
+
+/* ── SMALL UI BITS ───────────────────────────────────────────── */
+function Badge({g}){
+  return <span style={{display:"inline-block",padding:"1px 8px",borderRadius:12,fontSize:11,fontWeight:700,color:GC[g]||"#374151",background:GB[g]||"#f3f4f6"}}>{g||"?"}</span>;
+}
+function Trend({tov,final}){
+  if(tov===null||tov===undefined) return <span style={{color:"#9ca3af",fontSize:12}}>N/A</span>;
+  const d=final-tov,col=d>0?"#16a34a":d<0?"#dc2626":"#6b7280";
+  return <span style={{color:col,fontWeight:700,fontSize:12}}>{d>0?"▲":d<0?"▼":"—"} {Math.abs(d).toFixed(2)}</span>;
+}
+function Dot({status}){
+  const m={done:{bg:"#16a34a",l:"✓"},generating:{bg:"#f59e0b",l:"…"},error:{bg:"#dc2626",l:"!"},idle:{bg:"#e5e7eb",l:""}};
+  const c=m[status]||m.idle;
+  return <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:18,height:18,borderRadius:"50%",background:c.bg,color:"#fff",fontSize:10,fontWeight:700,flexShrink:0}}>{c.l}</span>;
+}
+function Spinner(){
+  return <span style={{display:"inline-block",width:16,height:16,border:"3px solid #e5e7eb",borderTop:"3px solid #2563eb",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   IMPORT SCREEN
+══════════════════════════════════════════════════════════════ */
+function ImportScreen({onLoad}){
+  const [tab,setTab]=useState("demo");
+  const [sheetUrl,setSheetUrl]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState("");
+  const [dragOver,setDragOver]=useState(false);
+  const [ocrPreview,setOcrPreview]=useState(null);
+  const [ocrLoading,setOcrLoading]=useState(false);
+  const [ocrResult,setOcrResult]=useState(null);
+  const [ocrError,setOcrError]=useState("");
+  const [cls,setCls]=useState("");
+  const [subj,setSubj]=useState("");
+  const [apiKey,setApiKey]=useState("");
+  const fileRef=useRef(),imgRef=useRef();
+
+  async function loadSheet(){
+    setError("");setLoading(true);
+    try{
+      const match=sheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+      if(!match) throw new Error("Invalid Google Sheet URL.");
+      const id=match[1];
+      const gidMatch=sheetUrl.match(/gid=(\d+)/);
+      const gid=gidMatch?gidMatch[1]:"0";
+      const res=await fetch(`https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`);
+      if(!res.ok) throw new Error("Could not fetch. Make sure sheet is set to 'Anyone with link can view'.");
+      const text=await res.text();
+      const students=normalizeRows(parseCSV(text));
+      if(!students.length) throw new Error("No student rows found. Check column headers.");
+      onLoad({students,className:cls||"Class",subject:subj||"Subject",source:"Google Sheet",apiKey});
+    }catch(e){setError(e.message);}
+    setLoading(false);
+  }
+
+  function handleCSV(file){
+    setError("");
+    const r=new FileReader();
+    r.onload=e=>{
+      try{
+        const students=normalizeRows(parseCSV(e.target.result));
+        if(!students.length) throw new Error("No valid rows found.");
+        onLoad({students,className:cls||file.name.replace(".csv",""),subject:subj||"Subject",source:"CSV Upload",apiKey});
+      }catch(err){setError(err.message);}
+    };
+    r.readAsText(file);
+  }
+
+  async function handleOCR(file){
+    setOcrError("");setOcrResult(null);setOcrLoading(true);
+    const r=new FileReader();
+    r.onload=async e=>{
+      const base64=e.target.result.split(",")[1];
+      const mediaType=file.type||"image/png";
+      setOcrPreview(e.target.result);
+      try{
+        const res=await fetch("https://api.anthropic.com/v1/messages",{
+          method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},
+          body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:4000,
+            messages:[{role:"user",content:[
+              {type:"image",source:{type:"base64",media_type:mediaType,data:base64}},
+              {type:"text",text:`Extract ALL student data from this marksheet image. Return ONLY raw JSON array, no markdown, no explanation.
+Each object: {"no":number,"name":string,"tov":number|null,"tov_g":string|null,"t1":number|null,"t1_g":string|null,"mid":number|null,"mid_g":string|null,"eoy":number|null,"eoy_g":string|null,"oral":number|null,"oral_g":string|null,"final":number|null,"final_g":string|null}
+If you detect class/subject from header, prepend one line: META:{"class":"...","subject":"..."}
+Then the JSON array.`}
+            ]}]})
+        });
+        const data=await res.json();
+        const raw=data.content?.map(b=>b.text||"").join("")||"";
+        let jsonStr=raw,meta={};
+        if(raw.startsWith("META:")){
+          const lines=raw.split("\n");
+          try{meta=JSON.parse(lines[0].replace("META:","").trim());}catch{}
+          jsonStr=lines.slice(1).join("\n");
+        }
+        const parsed=JSON.parse(jsonStr.trim());
+        const students=parsed.map((s,i)=>({
+          no:s.no||(i+1),name:s.name||`Student ${i+1}`,
+          tov:s.tov,tov_g:s.tov_g||inferGrade(s.tov),
+          t1:s.t1,t1_g:s.t1_g||inferGrade(s.t1),
+          mid:s.mid,mid_g:s.mid_g||inferGrade(s.mid),
+          eoy:s.eoy,eoy_g:s.eoy_g||inferGrade(s.eoy),
+          oral:s.oral,oral_g:s.oral_g||inferGrade(s.oral),
+          final:s.final||0,final_g:s.final_g||inferGrade(s.final),
+        }));
+        setOcrResult({students,meta});
+        if(meta.class) setCls(meta.class);
+        if(meta.subject) setSubj(meta.subject);
+      }catch(err){setOcrError("Could not parse image: "+err.message);}
+      setOcrLoading(false);
+    };
+    r.readAsDataURL(file);
+  }
+
+  const TABS=[["demo","🎓","Demo"],["sheet","📊","Google Sheet"],["csv","📁","CSV"],["ocr","📷","OCR"]];
+
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0f172a,#1e3a5f)",display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+      <div style={{width:"100%",maxWidth:600,animation:"fadeIn .4s ease"}}>
+        <div style={{textAlign:"center",marginBottom:28,color:"#fff"}}>
+          <div style={{fontSize:40,marginBottom:8}}>📋</div>
+          <div style={{fontSize:24,fontWeight:800}}>AI Progress Report Generator</div>
+          <div style={{fontSize:13,opacity:.7,marginTop:6}}>Load your class data to get started</div>
+        </div>
+
+        {/* API Key */}
+        <div style={{marginBottom:12,background:"rgba(255,255,255,.08)",borderRadius:12,padding:14}}>
+          <div style={{color:"rgba(255,255,255,.8)",fontSize:12,fontWeight:600,marginBottom:6}}>🔑 Anthropic API Key <span style={{opacity:.6,fontWeight:400}}>(required for AI report generation)</span></div>
+          <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-ant-..."
+            style={{width:"100%",padding:"9px 12px",borderRadius:8,border:"none",fontSize:13,background:"rgba(255,255,255,.1)",color:"#fff",outline:"none"}}/>
+          <div style={{fontSize:11,color:"rgba(255,255,255,.4)",marginTop:5}}>Get yours at console.anthropic.com — never stored, only used in your browser session.</div>
+        </div>
+
+        {/* Class + Subject */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+          <input value={cls} onChange={e=>setCls(e.target.value)} placeholder="Class (e.g. 2A)"
+            style={{padding:"9px 12px",borderRadius:8,border:"none",fontSize:13,background:"rgba(255,255,255,.1)",color:"#fff",outline:"none"}}/>
+          <input value={subj} onChange={e=>setSubj(e.target.value)} placeholder="Subject (e.g. B. Inggeris)"
+            style={{padding:"9px 12px",borderRadius:8,border:"none",fontSize:13,background:"rgba(255,255,255,.1)",color:"#fff",outline:"none"}}/>
+        </div>
+
+        {/* Tabs */}
+        <div style={{display:"flex",gap:4,background:"rgba(255,255,255,.08)",borderRadius:"12px 12px 0 0",padding:4}}>
+          {TABS.map(([id,icon,lbl])=>(
+            <button key={id} onClick={()=>setTab(id)} style={{flex:1,padding:"8px 4px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,
+              background:tab===id?"#fff":"transparent",color:tab===id?"#1e3a5f":"rgba(255,255,255,.6)"}}>
+              <div>{icon}</div><div style={{marginTop:2}}>{lbl}</div>
+            </button>
+          ))}
+        </div>
+
+        <div style={{background:"#fff",borderRadius:"0 0 14px 14px",padding:24,boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
+
+          {/* DEMO */}
+          {tab==="demo"&&(
+            <div style={{textAlign:"center",padding:"10px 0"}}>
+              <div style={{fontSize:44,marginBottom:10}}>🎓</div>
+              <div style={{fontWeight:700,color:"#1e3a5f",fontSize:16,marginBottom:8}}>Load Demo Data</div>
+              <div style={{fontSize:13,color:"#6b7280",marginBottom:20}}>Loads Class 2A B. Inggeris with 34 students. Perfect for exploring all features.</div>
+              <button onClick={()=>onLoad({students:DEMO_STUDENTS,className:"2A",subject:"B. Inggeris",source:"Demo",apiKey})}
+                style={{padding:"12px 32px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#7c3aed,#6d28d9)",color:"#fff",fontWeight:700,fontSize:15,cursor:"pointer"}}>
+                🚀 Load Class 2A Demo
+              </button>
+              {!apiKey&&<div style={{marginTop:12,fontSize:12,color:"#dc2626",background:"#fee2e2",borderRadius:8,padding:"8px 12px"}}>⚠️ Add your Anthropic API key above to generate reports</div>}
+            </div>
+          )}
+
+          {/* SHEET */}
+          {tab==="sheet"&&(
+            <div>
+              <div style={{fontWeight:700,color:"#1e3a5f",marginBottom:6}}>📊 Google Sheet URL</div>
+              <div style={{fontSize:12,color:"#6b7280",marginBottom:12}}>Sheet must be set to <strong>"Anyone with link can view"</strong></div>
+              <input value={sheetUrl} onChange={e=>setSheetUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/..."
+                style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:13,marginBottom:10,outline:"none"}}/>
+              <div style={{fontSize:11,color:"#9ca3af",marginBottom:12}}>Expected headers: No, Student Name, TOV, TOV_G, Test 1, T1_G, Mid Term, Mid_G, End of Year, EOY_G, Oral, Oral_G, Final Score, Final_G</div>
+              {error&&<div style={{background:"#fee2e2",color:"#dc2626",padding:"9px 12px",borderRadius:8,fontSize:13,marginBottom:10}}>⚠️ {error}</div>}
+              <button onClick={loadSheet} disabled={!sheetUrl||loading}
+                style={{width:"100%",padding:"11px",borderRadius:10,border:"none",background:"linear-gradient(135deg,#2563eb,#1d4ed8)",color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                {loading?<><Spinner/> Fetching…</>:"📊 Load Sheet"}
+              </button>
+            </div>
+          )}
+
+          {/* CSV */}
+          {tab==="csv"&&(
+            <div>
+              <div style={{fontWeight:700,color:"#1e3a5f",marginBottom:6}}>📁 Upload CSV</div>
+              <div style={{fontSize:12,color:"#6b7280",marginBottom:12}}>Export from Google Sheets: File → Download → CSV</div>
+              <div
+                onDragOver={e=>{e.preventDefault();setDragOver(true)}}
+                onDragLeave={()=>setDragOver(false)}
+                onDrop={e=>{e.preventDefault();setDragOver(false);const f=e.dataTransfer.files[0];if(f)handleCSV(f);}}
+                onClick={()=>fileRef.current.click()}
+                style={{border:`2px dashed ${dragOver?"#2563eb":"#cbd5e1"}`,borderRadius:12,padding:"32px 20px",textAlign:"center",cursor:"pointer",background:dragOver?"#eff6ff":"#f8fafc"}}>
+                <div style={{fontSize:32,marginBottom:8}}>📄</div>
+                <div style={{fontWeight:600,color:"#374151",marginBottom:4}}>Drop CSV here or click to browse</div>
+                <div style={{fontSize:12,color:"#9ca3af"}}>.csv files only</div>
+                <input ref={fileRef} type="file" accept=".csv" style={{display:"none"}} onChange={e=>{if(e.target.files[0])handleCSV(e.target.files[0]);}}/>
+              </div>
+              {error&&<div style={{background:"#fee2e2",color:"#dc2626",padding:"9px 12px",borderRadius:8,fontSize:13,marginTop:10}}>⚠️ {error}</div>}
+            </div>
+          )}
+
+          {/* OCR */}
+          {tab==="ocr"&&(
+            <div>
+              <div style={{fontWeight:700,color:"#1e3a5f",marginBottom:6}}>📷 Screenshot / OCR</div>
+              <div style={{fontSize:12,color:"#6b7280",marginBottom:12}}>Upload a screenshot or photo of your marksheet — Claude reads it automatically</div>
+              {!ocrPreview?(
+                <div
+                  onDragOver={e=>{e.preventDefault();setDragOver(true)}}
+                  onDragLeave={()=>setDragOver(false)}
+                  onDrop={e=>{e.preventDefault();setDragOver(false);const f=e.dataTransfer.files[0];if(f)handleOCR(f);}}
+                  onClick={()=>imgRef.current.click()}
+                  style={{border:`2px dashed ${dragOver?"#2563eb":"#cbd5e1"}`,borderRadius:12,padding:"36px 20px",textAlign:"center",cursor:"pointer",background:dragOver?"#eff6ff":"#f8fafc"}}>
+                  <div style={{fontSize:40,marginBottom:8}}>🖼️</div>
+                  <div style={{fontWeight:600,color:"#374151",marginBottom:4}}>Drop image here or click to upload</div>
+                  <div style={{fontSize:12,color:"#9ca3af"}}>PNG, JPG, WEBP — screenshot of Excel, Google Sheets, or printed sheet</div>
+                  <input ref={imgRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{if(e.target.files[0])handleOCR(e.target.files[0]);}}/>
+                </div>
+              ):(
+                <div>
+                  <img src={ocrPreview} alt="preview" style={{width:"100%",maxHeight:180,objectFit:"contain",borderRadius:10,border:"1.5px solid #e5e7eb",marginBottom:10}}/>
+                  {ocrLoading&&<div style={{textAlign:"center",padding:"16px",color:"#6b7280",display:"flex",alignItems:"center",justifyContent:"center",gap:8,fontWeight:600}}><Spinner/> Claude is reading your marksheet…</div>}
+                  {ocrError&&<div style={{background:"#fee2e2",color:"#dc2626",padding:"9px 12px",borderRadius:8,fontSize:13,marginBottom:10}}>⚠️ {ocrError}</div>}
+                  {ocrResult&&!ocrLoading&&(
+                    <div>
+                      <div style={{background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:10,padding:"12px",marginBottom:10}}>
+                        <div style={{fontWeight:700,color:"#166534",marginBottom:6}}>✅ {ocrResult.students.length} students extracted</div>
+                        <div style={{maxHeight:120,overflowY:"auto",fontSize:12}}>
+                          {ocrResult.students.slice(0,6).map(s=>(
+                            <div key={s.no} style={{display:"flex",gap:8,padding:"3px 0",borderBottom:"1px solid #dcfce7"}}>
+                              <span style={{width:20,color:"#9ca3af"}}>{s.no}.</span>
+                              <span style={{flex:1,fontWeight:600}}>{s.name}</span>
+                              <span style={{color:"#6b7280"}}>Final: {s.final}</span>
+                              <Badge g={s.final_g}/>
+                            </div>
+                          ))}
+                          {ocrResult.students.length>6&&<div style={{color:"#9ca3af",paddingTop:4}}>…and {ocrResult.students.length-6} more</div>}
+                        </div>
+                      </div>
+                      <div style={{display:"flex",gap:8}}>
+                        <button onClick={()=>{setOcrPreview(null);setOcrResult(null);}} style={{flex:1,padding:"9px",borderRadius:10,border:"1.5px solid #e5e7eb",background:"#f8fafc",color:"#374151",fontWeight:600,fontSize:13,cursor:"pointer"}}>🔄 Retry</button>
+                        <button onClick={()=>onLoad({students:ocrResult.students,className:cls||ocrResult.meta?.class||"Class",subject:subj||ocrResult.meta?.subject||"Subject",source:"OCR",apiKey})}
+                          style={{flex:2,padding:"9px",borderRadius:10,border:"none",background:"linear-gradient(135deg,#16a34a,#15803d)",color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+                          ✅ Confirm & Load {ocrResult.students.length} Students
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {!ocrResult&&!ocrLoading&&!ocrError&&(
+                    <button onClick={()=>setOcrPreview(null)} style={{width:"100%",padding:"9px",borderRadius:10,border:"1.5px solid #e5e7eb",background:"#f8fafc",color:"#374151",fontWeight:600,fontSize:13,cursor:"pointer"}}>🔄 Try Another</button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+        </div>
+        <div style={{textAlign:"center",marginTop:14,fontSize:11,color:"rgba(255,255,255,.35)"}}>Google Sheet · CSV · OCR Screenshot · Demo · Powered by Claude AI</div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MAIN APP
+══════════════════════════════════════════════════════════════ */
+function MainApp({data,onReset}){
+  const {students,className,subject,source,apiKey}=data;
+  const [reports,setReports]=useState({});
+  const [statuses,setStatuses]=useState({});
+  const [comments,setComments]=useState({});
+  const [selected,setSelected]=useState(null);
+  const [view,setView]=useState("dashboard");
+  const [editText,setEditText]=useState("");
+  const [editing,setEditing]=useState(false);
+  const [search,setSearch]=useState("");
+  const [filterGrade,setFilterGrade]=useState("All");
+  const [bulkRunning,setBulkRunning]=useState(false);
+  const [bulkDone,setBulkDone]=useState(0);
+  const [bulkTotal,setBulkTotal]=useState(0);
+  const [selectedNos,setSelectedNos]=useState(new Set());
+  const [bulkMode,setBulkMode]=useState("all");
+  const [bulkGrade,setBulkGrade]=useState("A");
+  const stopRef=useRef(false);
+
+  const setStat=(no,s)=>setStatuses(p=>({...p,[no]:s}));
+  const setRep=(no,t)=>setReports(p=>({...p,[no]:t}));
+  const doneCount=students.filter(s=>statuses[s.no]==="done").length;
+  const gradeCount=g=>students.filter(s=>s.final_g===g).length;
+  const classAvg=(students.reduce((a,s)=>a+s.final,0)/students.length).toFixed(2);
+  const highest=students.reduce((a,b)=>b.final>a.final?b:a,students[0]);
+  const withTov=students.filter(s=>s.tov!==null);
+  const improved=withTov.length?withTov.reduce((a,b)=>(b.final-b.tov>a.final-a.tov?b:a)):null;
+  const filtered=students.filter(s=>s.name.toLowerCase().includes(search.toLowerCase())&&(filterGrade==="All"||s.final_g===filterGrade));
+
+  async function genOne(student){
+    setStat(student.no,"generating");
+    try{
+      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+        headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},
+        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,
+          messages:[{role:"user",content:buildPrompt(student,className,subject,comments[student.no]||"")}]})});
+      const d=await res.json();
+      const text=d.content?.map(b=>b.text||"").join("")||"Unable to generate.";
+      setRep(student.no,text);setStat(student.no,"done");return text;
+    }catch{setStat(student.no,"error");return null;}
+  }
+
+  async function openReport(s){
+    setSelected(s);setEditing(false);setEditText(reports[s.no]||"");setView("report");
+    if(!reports[s.no]) await genOne(s);
+  }
+
+  async function runBulk(queue){
+    stopRef.current=false;setBulkRunning(true);setBulkDone(0);setBulkTotal(queue.length);
+    let done=0;
+    for(const s of queue){
+      if(stopRef.current) break;
+      if(!reports[s.no]) await genOne(s); else setStat(s.no,"done");
+      done++;setBulkDone(done);
+    }
+    setBulkRunning(false);
+  }
+
+  function getBulkQueue(){
+    if(bulkMode==="all") return students;
+    if(bulkMode==="grade") return students.filter(s=>s.final_g===bulkGrade);
+    return students.filter(s=>selectedNos.has(s.no));
+  }
+
+  function downloadAll(){
+    const done=students.filter(s=>reports[s.no]);
+    if(!done.length) return;
+    const txt=done.map(s=>`${"=".repeat(62)}\n${s.name} | Class ${className} | ${subject} | Final: ${s.final} (${s.final_g})\n${"=".repeat(62)}\n${reports[s.no]}\n`).join("\n\n");
+    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([txt],{type:"text/plain"}));
+    a.download=`${className}_${subject}_Reports.txt`;a.click();
+  }
+
+  function printReport(s){
+    const text=editing?editText:(reports[s.no]||"");
+    const tc=comments[s.no]?`<p style="background:#fef9c3;border-left:4px solid #d97706;padding:10px 14px;border-radius:6px;font-style:italic;color:#78350f;margin-bottom:16px">📝 Teacher's Note: ${comments[s.no]}</p>`:"";
+    const w=window.open("","_blank");
+    w.document.write(`<html><head><title>Report – ${s.name}</title><style>body{font-family:Georgia,serif;max-width:700px;margin:40px auto;line-height:1.8;color:#222}h2{color:#1e3a5f}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:6px 10px;font-size:13px}th{background:#f0f4f8}.sc td{text-align:center}</style></head><body>
+    <h2>Progress Report — ${s.name}</h2><p><strong>Class:</strong> ${className} | <strong>Subject:</strong> ${subject} | <strong>Final:</strong> ${s.final_g} (${s.final})</p>
+    <table><tr><th>Assessment</th><th>Score</th><th>Grade</th></tr>
+    <tr class="sc"><td>TOV</td><td>${s.tov??"-"}</td><td>${s.tov_g}</td></tr>
+    <tr class="sc"><td>Test 1</td><td>${s.t1??"-"}</td><td>${s.t1_g}</td></tr>
+    <tr class="sc"><td>Mid Term</td><td>${s.mid??"-"}</td><td>${s.mid_g}</td></tr>
+    <tr class="sc"><td>End of Year</td><td>${s.eoy??"-"}</td><td>${s.eoy_g}</td></tr>
+    <tr class="sc"><td>Oral</td><td>${s.oral??"-"}</td><td>${s.oral_g}</td></tr>
+    <tr class="sc"><td><strong>Final</strong></td><td><strong>${s.final}</strong></td><td><strong>${s.final_g}</strong></td></tr>
+    </table><br/>${tc}<p>${text.replace(/\n/g,"</p><p>")}</p>
+    <p style="margin-top:40px;font-size:12px;color:#999">AI Progress Report Generator · ${className} ${subject}</p></body></html>`);
+    w.document.close();w.print();
+  }
+
+  const NAV=(
+    <div style={{background:"linear-gradient(135deg,#1e3a5f,#2563eb)",color:"#fff",padding:"10px 16px"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+        <button onClick={onReset} style={{background:"rgba(255,255,255,.15)",border:"none",color:"#fff",borderRadius:8,padding:"5px 10px",cursor:"pointer",fontSize:12}}>← New Class</button>
+        <div style={{flex:1}}><span style={{fontWeight:800,fontSize:14}}>📋 {className}</span><span style={{opacity:.7,fontSize:12,marginLeft:6}}>{subject}</span><span style={{opacity:.4,fontSize:11,marginLeft:6}}>({source})</span></div>
+        <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+          {[["dashboard","📊"],["list","👥"],["bulk","⚡"]].map(([v,ic])=>(
+            <button key={v} onClick={()=>setView(v)} style={{padding:"5px 12px",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:700,border:"none",background:view===v?"rgba(255,255,255,.95)":"rgba(255,255,255,.15)",color:view===v?"#1e3a5f":"#fff"}}>{ic} {v.charAt(0).toUpperCase()+v.slice(1)}</button>
+          ))}
+          {doneCount>0&&<button onClick={downloadAll} style={{padding:"5px 12px",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:700,border:"1.5px solid rgba(255,255,255,.5)",background:"transparent",color:"#fff"}}>📥 ({doneCount})</button>}
+        </div>
+      </div>
+    </div>
+  );
+
+  /* DASHBOARD */
+  if(view==="dashboard") return (
+    <div style={{fontFamily:"'Segoe UI',sans-serif",minHeight:"100vh",background:"#f0f4f8"}}>
+      {NAV}
+      <div style={{maxWidth:1000,margin:"20px auto",padding:"0 14px"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10,marginBottom:18}}>
+          {[
+            {icon:"👥",label:"Total Students",val:students.length,sub:`Class ${className}`},
+            {icon:"📈",label:"Class Average",val:classAvg,sub:"Final Score"},
+            {icon:"🏆",label:"Top Score",val:highest?.final,sub:highest?.name},
+            {icon:"📋",label:"Reports Done",val:doneCount,sub:`of ${students.length}`},
+            {icon:"⭐",label:"Most Improved",val:improved?`+${(improved.final-(improved.tov||0)).toFixed(2)}`:"N/A",sub:improved?.name||"-"},
+          ].map(({icon,label,val,sub})=>(
+            <div key={label} style={{background:"#fff",borderRadius:14,padding:"14px 12px",boxShadow:"0 1px 6px rgba(0,0,0,.07)",textAlign:"center"}}>
+              <div style={{fontSize:24,marginBottom:4}}>{icon}</div>
+              <div style={{fontSize:20,fontWeight:800,color:"#1e3a5f"}}>{val}</div>
+              <div style={{fontSize:11,fontWeight:600,color:"#374151",marginTop:2}}>{label}</div>
+              <div style={{fontSize:11,color:"#9ca3af",marginTop:1}}>{sub}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+          <div style={{background:"#fff",borderRadius:14,padding:18,boxShadow:"0 1px 6px rgba(0,0,0,.07)"}}>
+            <div style={{fontWeight:700,color:"#1e3a5f",marginBottom:14,fontSize:14}}>📊 Grade Distribution</div>
+            {[["A","#16a34a"],["B","#2563eb"],["C","#d97706"],["D","#dc2626"]].map(([g,col])=>{
+              const cnt=gradeCount(g),pct=Math.round(cnt/students.length*100);
+              return(
+                <div key={g} style={{marginBottom:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3}}>
+                    <span style={{fontWeight:600}}>Grade {g} — {RUBRICS[g]?.label}</span>
+                    <span style={{color:"#6b7280"}}>{cnt} ({pct}%)</span>
+                  </div>
+                  <div style={{background:"#f1f5f9",borderRadius:99,height:9,overflow:"hidden"}}>
+                    <div style={{height:"100%",borderRadius:99,background:col,width:`${pct}%`,transition:"width .6s"}}/>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{background:"#fff",borderRadius:14,padding:18,boxShadow:"0 1px 6px rgba(0,0,0,.07)"}}>
+            <div style={{fontWeight:700,color:"#1e3a5f",marginBottom:14,fontSize:14}}>📉 Assessment Averages</div>
+            {[["TOV",students.filter(s=>s.tov!==null).map(s=>s.tov),"#6b7280"],["Test 1",students.map(s=>s.t1).filter(Boolean),"#8b5cf6"],["Mid Term",students.map(s=>s.mid).filter(Boolean),"#0ea5e9"],["EOY",students.map(s=>s.eoy).filter(Boolean),"#f59e0b"],["Oral",students.map(s=>s.oral).filter(Boolean),"#ec4899"],["Final",students.map(s=>s.final),"#16a34a"]].map(([lbl,arr,col])=>{
+              if(!arr.length) return null;
+              const a=(arr.reduce((x,y)=>x+y,0)/arr.length),pct=Math.round((a/100)*100);
+              return(
+                <div key={lbl} style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
+                  <div style={{width:60,fontSize:11,color:"#374151",fontWeight:600,flexShrink:0}}>{lbl}</div>
+                  <div style={{flex:1,background:"#f1f5f9",borderRadius:99,height:7,overflow:"hidden"}}><div style={{height:"100%",borderRadius:99,background:col,width:`${pct}%`}}/></div>
+                  <div style={{width:34,fontSize:11,fontWeight:700,color:col,textAlign:"right"}}>{a.toFixed(1)}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+          <div style={{background:"#fff",borderRadius:14,padding:18,boxShadow:"0 1px 6px rgba(0,0,0,.07)"}}>
+            <div style={{fontWeight:700,color:"#16a34a",marginBottom:10,fontSize:14}}>🏆 Top Performers</div>
+            {[...students].sort((a,b)=>b.final-a.final).slice(0,5).map((s,i)=>(
+              <div key={s.no} onClick={()=>openReport(s)} style={{display:"flex",alignItems:"center",gap:8,marginBottom:7,cursor:"pointer"}}>
+                <span style={{width:20,height:20,borderRadius:"50%",background:i===0?"#fbbf24":i===1?"#d1d5db":i===2?"#cd7f32":"#f3f4f6",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>{i+1}</span>
+                <span style={{flex:1,fontSize:12,fontWeight:600}}>{s.name}</span><Badge g={s.final_g}/>
+                <span style={{fontSize:12,fontWeight:700,color:"#16a34a"}}>{s.final}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{background:"#fff",borderRadius:14,padding:18,boxShadow:"0 1px 6px rgba(0,0,0,.07)"}}>
+            <div style={{fontWeight:700,color:"#dc2626",marginBottom:10,fontSize:14}}>🎯 Needs Attention</div>
+            {[...students].sort((a,b)=>a.final-b.final).slice(0,5).map((s,i)=>(
+              <div key={s.no} onClick={()=>openReport(s)} style={{display:"flex",alignItems:"center",gap:8,marginBottom:7,cursor:"pointer"}}>
+                <span style={{width:20,height:20,borderRadius:"50%",background:"#fee2e2",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0,color:"#dc2626"}}>{i+1}</span>
+                <span style={{flex:1,fontSize:12,fontWeight:600}}>{s.name}</span><Badge g={s.final_g}/>
+                <span style={{fontSize:12,fontWeight:700,color:"#dc2626"}}>{s.final}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  /* BULK */
+  if(view==="bulk") return (
+    <div style={{fontFamily:"'Segoe UI',sans-serif",minHeight:"100vh",background:"#f0f4f8"}}>
+      {NAV}
+      <div style={{maxWidth:780,margin:"20px auto",padding:"0 14px"}}>
+        {(bulkRunning||bulkDone>0)&&(
+          <div style={{background:"#fff",borderRadius:14,padding:18,marginBottom:14,boxShadow:"0 2px 12px rgba(0,0,0,.08)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+              <span style={{fontWeight:700,color:"#1e3a5f"}}>{bulkRunning?"⏳ Generating…":"✅ Complete!"}</span>
+              <span style={{fontSize:13,color:"#6b7280"}}>{bulkDone}/{bulkTotal}</span>
+            </div>
+            <div style={{background:"#e5e7eb",borderRadius:99,height:12,overflow:"hidden"}}>
+              <div style={{height:"100%",borderRadius:99,transition:"width .4s",background:"linear-gradient(90deg,#2563eb,#16a34a)",width:`${bulkTotal?Math.round(bulkDone/bulkTotal*100):0}%`}}/>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:5,fontSize:11,color:"#6b7280"}}>
+              <span>{bulkTotal?Math.round(bulkDone/bulkTotal*100):0}% complete</span>
+              <span>~{bulkDone*770} tokens used</span>
+            </div>
+            {bulkRunning&&<button onClick={()=>stopRef.current=true} style={{marginTop:8,background:"#fee2e2",border:"1.5px solid #dc2626",color:"#dc2626",borderRadius:8,padding:"5px 14px",cursor:"pointer",fontWeight:600,fontSize:12}}>⏹ Stop</button>}
+          </div>
+        )}
+        <div style={{background:"#fff",borderRadius:14,padding:18,marginBottom:14,boxShadow:"0 2px 12px rgba(0,0,0,.08)"}}>
+          <div style={{fontWeight:700,color:"#1e3a5f",marginBottom:10}}>Select Mode</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
+            {[["all",`🏫 All ${students.length}`],["grade","📊 By Grade"],["select","☑️ Select"]].map(([m,lbl])=>(
+              <button key={m} onClick={()=>setBulkMode(m)} style={{padding:"7px 14px",borderRadius:10,cursor:"pointer",fontSize:13,fontWeight:600,border:`2px solid ${bulkMode===m?"#2563eb":"#e5e7eb"}`,background:bulkMode===m?"#dbeafe":"#fff",color:bulkMode===m?"#1d4ed8":"#374151"}}>{lbl}</button>
+            ))}
+          </div>
+          {bulkMode==="grade"&&<div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+            {["A","B","C","D"].map(g=><button key={g} onClick={()=>setBulkGrade(g)} style={{padding:"6px 16px",borderRadius:10,cursor:"pointer",fontWeight:700,border:`2px solid ${bulkGrade===g?GC[g]:"#e5e7eb"}`,background:bulkGrade===g?GB[g]:"#fff",color:bulkGrade===g?GC[g]:"#374151"}}>Grade {g} ({gradeCount(g)})</button>)}
+          </div>}
+          {bulkMode==="select"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:5,marginBottom:12}}>
+            {students.map(s=><label key={s.no} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 9px",borderRadius:9,cursor:"pointer",border:`1.5px solid ${selectedNos.has(s.no)?GC[s.final_g]:"#e5e7eb"}`,background:selectedNos.has(s.no)?GB[s.final_g]:"#f8fafc",fontSize:11}}>
+              <input type="checkbox" checked={selectedNos.has(s.no)} onChange={()=>setSelectedNos(p=>{const n=new Set(p);n.has(s.no)?n.delete(s.no):n.add(s.no);return n;})} style={{accentColor:GC[s.final_g]}}/>
+              <span style={{flex:1,fontWeight:600}}>{s.name}</span><Badge g={s.final_g}/>
+            </label>)}
+          </div>}
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <button disabled={bulkRunning} onClick={()=>runBulk(getBulkQueue())} style={{background:bulkRunning?"#9ca3af":"linear-gradient(135deg,#2563eb,#1d4ed8)",color:"#fff",border:"none",borderRadius:10,padding:"9px 22px",cursor:bulkRunning?"not-allowed":"pointer",fontWeight:700,fontSize:14}}>
+              {bulkRunning?"Running…":`⚡ Generate ${bulkMode==="all"?students.length:bulkMode==="grade"?gradeCount(bulkGrade):selectedNos.size} Reports`}
+            </button>
+            {doneCount>0&&<button onClick={downloadAll} style={{background:"#f0fdf4",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:10,padding:"9px 18px",cursor:"pointer",fontWeight:700}}>📥 Download ({doneCount})</button>}
+          </div>
+        </div>
+        <div style={{background:"#fff",borderRadius:14,padding:18,boxShadow:"0 2px 12px rgba(0,0,0,.08)"}}>
+          <div style={{fontWeight:700,color:"#1e3a5f",marginBottom:10}}>Status — {doneCount}/{students.length} Done</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(190px,1fr))",gap:7}}>
+            {students.map(s=>{const st=statuses[s.no]||"idle";return(
+              <div key={s.no} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 10px",borderRadius:10,background:st==="done"?"#f0fdf4":st==="generating"?"#fefce8":st==="error"?"#fef2f2":"#f8fafc",border:`1px solid ${st==="done"?"#bbf7d0":st==="generating"?"#fde68a":st==="error"?"#fecaca":"#e5e7eb"}`}}>
+                <Dot status={st}/>
+                <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.name}</div><div style={{fontSize:10,color:"#6b7280"}}>{st==="done"?"Ready":st==="generating"?"Generating…":st==="error"?"Error":"Pending"}</div></div>
+                <Badge g={s.final_g}/>
+                {st==="done"&&<button onClick={()=>openReport(s)} style={{background:"#dbeafe",border:"none",color:"#2563eb",borderRadius:6,padding:"2px 7px",cursor:"pointer",fontSize:10,fontWeight:600}}>View</button>}
+              </div>
+            );})}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  /* REPORT */
+  if(view==="report"&&selected){
+    const s=selected,text=reports[s.no]||"",loading=statuses[s.no]==="generating";
+    return(
+      <div style={{fontFamily:"'Segoe UI',sans-serif",minHeight:"100vh",background:"#f0f4f8"}}>
+        {NAV}
+        <div style={{maxWidth:740,margin:"20px auto",padding:"0 14px"}}>
+          <div style={{background:"#fff",borderRadius:14,padding:18,marginBottom:12,boxShadow:"0 2px 12px rgba(0,0,0,.08)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
+              <div><div style={{fontSize:11,color:"#6b7280",textTransform:"uppercase",letterSpacing:.8}}>Progress Report · {className} · {subject}</div><div style={{fontSize:19,fontWeight:800,color:"#1e3a5f"}}>{s.name}</div></div>
+              <div style={{textAlign:"center"}}><div style={{width:50,height:50,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,fontWeight:900,background:GB[s.final_g],color:GC[s.final_g],border:`3px solid ${GC[s.final_g]}`}}>{s.final_g}</div><div style={{fontSize:12,fontWeight:700,marginTop:3}}>{s.final}</div></div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,marginTop:12}}>
+              {[["TOV",s.tov,s.tov_g],["Test 1",s.t1,s.t1_g],["Mid",s.mid,s.mid_g],["EOY",s.eoy,s.eoy_g],["Oral",s.oral,s.oral_g]].map(([lbl,sc,g])=>(
+                <div key={lbl} style={{background:"#f8fafc",borderRadius:9,padding:"8px 4px",textAlign:"center"}}>
+                  <div style={{fontSize:9,color:"#9ca3af",marginBottom:2}}>{lbl}</div>
+                  <div style={{fontSize:15,fontWeight:700,color:"#1e293b"}}>{sc??"-"}</div><Badge g={g}/>
+                </div>
+              ))}
+            </div>
+            <div style={{marginTop:8,fontSize:12,display:"flex",gap:10,flexWrap:"wrap"}}>
+              <span><strong>Final:</strong> {s.final}</span><span style={{color:"#9ca3af"}}>|</span>
+              <span>Trend: <Trend tov={s.tov} final={s.final}/></span>
+            </div>
+          </div>
+          <div style={{background:"#fff",borderRadius:14,padding:16,marginBottom:12,boxShadow:"0 2px 12px rgba(0,0,0,.08)"}}>
+            <div style={{fontWeight:700,color:"#1e3a5f",marginBottom:6,fontSize:13}}>📝 Teacher's Comments <span style={{fontSize:11,color:"#9ca3af",fontWeight:400}}>(woven into report)</span></div>
+            <textarea value={comments[s.no]||""} onChange={e=>setComments(p=>({...p,[s.no]:e.target.value}))} placeholder="Add personal observations…" rows={2}
+              style={{width:"100%",padding:"9px 12px",borderRadius:9,border:"1.5px solid #e2e8f0",fontSize:13,lineHeight:1.6,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box",outline:"none"}}/>
+          </div>
+          <div style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 2px 12px rgba(0,0,0,.08)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
+              <div style={{fontSize:14,fontWeight:700,color:"#1e3a5f"}}>✨ AI-Generated Report</div>
+              {!loading&&text&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                <button onClick={()=>{setEditText(text);setEditing(!editing)}} style={{background:editing?"#fef3c7":"#f0f4ff",border:`1.5px solid ${editing?"#d97706":"#2563eb"}`,color:editing?"#92400e":"#2563eb",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:11,fontWeight:600}}>{editing?"💾 Done":"✏️ Edit"}</button>
+                <button onClick={()=>navigator.clipboard.writeText(editing?editText:text).catch(()=>{})} style={{background:"#f0f4ff",border:"1.5px solid #2563eb",color:"#2563eb",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:11,fontWeight:600}}>📋 Copy</button>
+                <button onClick={()=>printReport(s)} style={{background:"#f0fdf4",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:11,fontWeight:600}}>🖨️ Print</button>
+                <button onClick={()=>{setEditing(false);genOne(s);}} style={{background:"#f8fafc",border:"1.5px solid #9ca3af",color:"#374151",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:11,fontWeight:600}}>🔄 Regen</button>
+              </div>}
+            </div>
+            {loading?(<div style={{textAlign:"center",padding:"36px 0",color:"#6b7280"}}><div style={{fontSize:26,marginBottom:8}}>⏳</div><div style={{fontWeight:600}}>Generating report for {s.name}…</div></div>)
+            :editing?(<textarea value={editText} onChange={e=>setEditText(e.target.value)} style={{width:"100%",minHeight:240,padding:12,borderRadius:9,border:"1.5px solid #d97706",fontSize:13,lineHeight:1.8,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>)
+            :text?(<div style={{lineHeight:1.9,color:"#374151",fontSize:13,whiteSpace:"pre-wrap"}}>{text}</div>)
+            :(<button onClick={()=>genOne(s)} style={{background:"linear-gradient(135deg,#2563eb,#1d4ed8)",color:"#fff",border:"none",borderRadius:10,padding:"10px 22px",cursor:"pointer",fontWeight:700,fontSize:14}}>✨ Generate Report</button>)}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* LIST */
+  return(
+    <div style={{fontFamily:"'Segoe UI',sans-serif",minHeight:"100vh",background:"#f0f4f8"}}>
+      {NAV}
+      <div style={{maxWidth:1040,margin:"20px auto",padding:"0 14px"}}>
+        <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
+          <input placeholder="🔍 Search…" value={search} onChange={e=>setSearch(e.target.value)} style={{flex:1,minWidth:150,padding:"8px 12px",borderRadius:9,border:"1.5px solid #e2e8f0",fontSize:13,outline:"none"}}/>
+          <select value={filterGrade} onChange={e=>setFilterGrade(e.target.value)} style={{padding:"8px 10px",borderRadius:9,border:"1.5px solid #e2e8f0",fontSize:13,background:"#fff",cursor:"pointer"}}>
+            <option value="All">All Grades</option>{["A","B","C","D"].map(g=><option key={g} value={g}>Grade {g}</option>)}
+          </select>
+          <span style={{fontSize:12,color:"#6b7280"}}>{filtered.length} shown</span>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(265px,1fr))",gap:10}}>
+          {filtered.map(s=>{const st=statuses[s.no]||"idle";return(
+            <div key={s.no} style={{background:"#fff",borderRadius:13,padding:14,boxShadow:"0 1px 6px rgba(0,0,0,.07)",borderLeft:`4px solid ${GC[s.final_g]||"#ccc"}`,transition:"transform .15s,box-shadow .15s",cursor:"pointer"}}
+              onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 6px 18px rgba(0,0,0,.12)";}}
+              onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="0 1px 6px rgba(0,0,0,.07)";}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div><div style={{display:"flex",alignItems:"center",gap:5,marginBottom:2}}><Dot status={st}/><span style={{fontSize:10,color:"#9ca3af"}}>No. {s.no}</span></div>
+                <div style={{fontWeight:700,color:"#1e293b",fontSize:13}}>{s.name}</div>
+                <div style={{fontSize:11,color:"#6b7280"}}>{RUBRICS[s.final_g]?.label||"—"}</div></div>
+                <div style={{textAlign:"center"}}><div style={{width:40,height:40,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:900,background:GB[s.final_g],color:GC[s.final_g]}}>{s.final_g}</div><div style={{fontSize:11,fontWeight:600,marginTop:2}}>{s.final}</div></div>
+              </div>
+              {comments[s.no]&&<div style={{marginTop:7,fontSize:10,color:"#92400e",background:"#fef9c3",borderRadius:7,padding:"3px 8px",fontStyle:"italic"}}>📝 {comments[s.no].slice(0,50)}{comments[s.no].length>50?"…":""}</div>}
+              <div style={{display:"flex",gap:3,marginTop:8,flexWrap:"wrap"}}>
+                {[["TOV",s.tov_g],["T1",s.t1_g],["Mid",s.mid_g],["EOY",s.eoy_g],["Oral",s.oral_g]].map(([lbl,g])=>(
+                  <div key={lbl} style={{display:"flex",alignItems:"center",gap:2,fontSize:10,color:"#6b7280"}}><span>{lbl}:</span><Badge g={g}/></div>
+                ))}
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:9}}>
+                <div style={{fontSize:10,color:"#6b7280"}}>Trend: <Trend tov={s.tov} final={s.final}/></div>
+                <button onClick={()=>openReport(s)} style={{background:st==="done"?"linear-gradient(135deg,#16a34a,#15803d)":"linear-gradient(135deg,#2563eb,#1d4ed8)",color:"#fff",border:"none",borderRadius:8,padding:"5px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{st==="done"?"📄 View":"✨ Generate"}</button>
+              </div>
+            </div>
+          );})}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── ROOT ───────────────────────────────────────────────────── */
+function Root(){
+  const [data,setData]=useState(null);
+  if(!data) return <ImportScreen onLoad={setData}/>;
+  return <MainApp data={data} onReset={()=>setData(null)}/>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<Root/>);
+</script>
 </body>
 </html>
